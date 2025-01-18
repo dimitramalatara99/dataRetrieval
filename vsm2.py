@@ -97,7 +97,7 @@ class VectorSpaceModel:
 
     def cosine_similarity(self, doc_vector, query_vector):
 
-        # cosine similarity between vectors
+        # cosine similarity between q and d
 
         numerator = 0.0
         for term, wq in query_vector.items():
@@ -125,9 +125,18 @@ class VectorSpaceModel:
         scores = []
         for doc_id, doc_vector in self.documents.items():
             sim = self.cosine_similarity(doc_vector, query_vec)
-            scores.append((doc_id, sim))
+            doc_id_stripped = doc_id.lstrip("0")
+            #strips zeros(not the all 0 case)
+            if doc_id_stripped == "":
+                doc_id_stripped = "0"
+            scores.append((doc_id_stripped, sim))
 
-        # Sort descending by sim
-        scores.sort(key=lambda x: x[1], reverse=True)
+        if top_k is not None and top_k < len(scores):
+            scores = scores[:top_k]
 
-        return scores[:top_k]
+            # rsults
+        print("---Descending ranking by similarity---")
+        for  doc_id_stripped, score in scores:
+            print(f" {doc_id_stripped} | Score: {score:.4f}")
+
+        return scores
