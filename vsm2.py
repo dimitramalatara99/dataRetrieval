@@ -8,7 +8,7 @@ class VectorSpaceModel:
     def __init__(self, inverted_index):
 
         self.inverted_index = inverted_index
-        self.document_count = inverted_index.document_count  # should be set after preprocessing
+        self.document_count = inverted_index.document_count
         self.documents = {}  # {doc_id: {term: tfidf_value}}
 
         #  query preprocess
@@ -27,18 +27,19 @@ class VectorSpaceModel:
                     doc_term_freqs[doc_id] = {}
                 doc_term_freqs[doc_id][term] = freq
 
-        # For each doc, compute TF–IDF for each term
+        #  TF–IDF for each term in every doc
         for doc_id, freqs in doc_term_freqs.items():
-            max_freq = max(freqs.values())  # highest raw frequency in this doc
+            max_freq = max(freqs.values())  # highest r(aw) frequency in this doc
             self.documents[doc_id] = {}
 
             for term, freq in freqs.items():
-                # TF = (freq / max freq)
+                # tf=(freq / max freq)
                 tf = freq / max_freq
 
-                # IDF = log10(total_docs / DF)
+                # idf=log(total_docs / DF)
                 df = vs_index[term]["DF"]  # posa docs exoun to term
                 ratio = self.document_count / df if df != 0 else None
+
                 print(f"Term={term}, doc_count={self.document_count}, df={df}, ratio={ratio}")
 
                 if df == 0 or self.document_count == 0:
@@ -63,10 +64,7 @@ class VectorSpaceModel:
         return processed
 
     def query_tfidf(self, query_tokens):
-        """
-        Build TF–IDF vector for a query (as a dict {term: weight}).
-        Uses the same IDF from the index.
-        """
+
         if not query_tokens:
             return {}
 
@@ -90,14 +88,14 @@ class VectorSpaceModel:
                 else:
                     idf = math.log10(self.document_count / df)
             else:
-                # term not in collection => IDF=0
+                # term not in collection then IDF=0
                 idf = 0
 
             query_vec[term] = tf * idf
 
         return query_vec
 
-    def _cosine_similarity(self, doc_vector, query_vector):
+    def cosine_similarity(self, doc_vector, query_vector):
 
         # cosine similarity between vectors
 
@@ -116,22 +114,17 @@ class VectorSpaceModel:
         return numerator / (doc_norm * query_norm)
 
     def search(self, query_str, top_k=10):
-        """
-        1) Preprocess query,
-        2) Build query TF–IDF vector,
-        3) Compute cosine similarity with each document vector,
-        4) Return top_k results sorted by similarity (descending).
-        """
-        # Preprocess query
+
+
         query_tokens = self._preprocess_query(query_str)
 
-        # Build query vector
+        # query vectors
         query_vec = self.query_tfidf(query_tokens)
 
-        # Calculate similarity for each doc
+        #  similarity for each doc
         scores = []
         for doc_id, doc_vector in self.documents.items():
-            sim = self._cosine_similarity(doc_vector, query_vec)
+            sim = self.cosine_similarity(doc_vector, query_vec)
             scores.append((doc_id, sim))
 
         # Sort descending by sim
