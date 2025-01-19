@@ -2,22 +2,20 @@ import math
 
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
+from pycparser.ply.yacc import token
 
 
 class VectorSpaceModel:
-    def __init__(self, inverted_index):
+    def __init__(self, inverted_index, doc_count):
 
         self.inverted_index = inverted_index
-        self.document_count = inverted_index.document_count
+        self.doc_count = doc_count
         self.documents = {}  # {doc_id: {term: tfidf_value}}
 
-        #  query preprocess
-        self.stopwords = set(stopwords.words("english"))
-        self.stemmer = PorterStemmer()
 
     def doc_tfidf(self):
 
-        vs_index = self.inverted_index.vs_inv_index
+        vs_index = self.inverted_index
 
         doc_term_freqs = {}
 
@@ -37,63 +35,47 @@ class VectorSpaceModel:
                 tf = freq / max_freq
 
                 # idf=log(total_docs / DF)
-                df = vs_index[term]["DF"]  # posa docs exoun to term
-                ratio = self.document_count / df if df != 0 else None
-
-                print(f"Term={term}, doc_count={self.document_count}, df={df}, ratio={ratio}")
-
-                if df == 0 or self.document_count == 0:
+                df = vs_index[term]["DF"]
+                if df == 0 or self.doc_count == 0:
                     idf = 0
                 else:
-                    idf = math.log10(self.document_count / df)
+                    idf = math.log10(self.doc_count / df)
 
                 self.documents[doc_id][term] = tf * idf
+    #
+    # def _preprocess_query(self, query_str):
+    #
+    #     tokens = query_str.split()
+    #     processed = []
+    #
+    #     for token in tokens:
+    #         token = token.lower().strip()
+    #         if token in self.stopwords or token == "":
+    #             continue
+    #         stemmed = self.stemmer.stem(token)
+    #         processed.append(stemmed)
+    #
+    #     return processed
 
-    def _preprocess_query(self, query_str):
+    def query_tfidf(self, query_info):
 
-        tokens = query_str.split()
-        processed = []
+        stemmed_tokens = query_info["stemmed_tokens"]
+        term_frequencies = query_info["tf"]
+        total_terms = query_info["total_terms"]
 
-        for token in tokens:
-            token = token.lower().strip()
-            if token in self.stopwords or token == "":
-                continue
-            stemmed = self.stemmer.stem(token)
-            processed.append(stemmed)
+        #  TF-IDF for each query term
+        query_tfidf = {}
+        for term in stemmed_tokens:
+            tf = term_frequencies[term] / total_terms if total_terms > 0 else 0
 
-        return processed
+            #  (IDF) query doesnt have DF so we use DF from the collection of docs
+            df = self.inverted_index.get(term, {}).get("DF", 0)
+            idf = math.log10(self.doc_count / df) if df > 0 else 0
 
-    def query_tfidf(self, query_tokens):
+            # TF-IDF
+            query_tfidf[term] = tf * idf
 
-        if not query_tokens:
-            return {}
-
-        # raw frequencies in query
-        freq_map = {}
-        for t in query_tokens:
-            freq_map[t] = freq_map.get(t, 0) + 1
-
-        max_freq = max(freq_map.values())
-        query_vec = {}
-
-        for term, freq in freq_map.items():
-            # TF for query
-            tf = freq / max_freq
-
-            # IDF from the index
-            if term in self.inverted_index.vs_inv_index:
-                df = self.inverted_index.vs_inv_index[term]["DF"]
-                if df == 0 or self.document_count == 0:
-                    idf = 0
-                else:
-                    idf = math.log10(self.document_count / df)
-            else:
-                # term not in collection then IDF=0
-                idf = 0
-
-            query_vec[term] = tf * idf
-
-        return query_vec
+        return query_tfidf
 
     def cosine_similarity(self, doc_vector, query_vector):
 
@@ -113,30 +95,27 @@ class VectorSpaceModel:
 
         return numerator / (doc_norm * query_norm)
 
-    def search(self, query_str, top_k=10):
-
-
-        query_tokens = self._preprocess_query(query_str)
+    def search_tokens(self, query_data, top_k=10):
 
         # query vectors
-        query_vec = self.query_tfidf(query_tokens)
+        query_vec = self.query_tfidf(query_data)
 
         #  similarity for each doc
         scores = []
         for doc_id, doc_vector in self.documents.items():
             sim = self.cosine_similarity(doc_vector, query_vec)
-            doc_id_stripped = doc_id.lstrip("0")
+            doc_id_stripped = doc_id.lstrip("0") or "0"
             #strips zeros(not the all 0 case)
-            if doc_id_stripped == "":
-                doc_id_stripped = "0"
             scores.append((doc_id_stripped, sim))
+
+        scores.sort(key=lambda x: x[1], reverse=True)
 
         if top_k is not None and top_k < len(scores):
             scores = scores[:top_k]
 
             # rsults
-        print("---Descending ranking by similarity---")
-        for  doc_id_stripped, score in scores:
-            print(f" {doc_id_stripped} | Score: {score:.4f}")
+        # print("---Descending ranking by similarity---")
+        # for  doc_id_stripped, score in scores:
+        #     print(f" {doc_id_stripped} | Score: {score:.4f}")
 
         return scores
