@@ -2,7 +2,6 @@ class InvertedIndex:
     def __init__(self):
         self.vs_inv_index = {}
         self.boolean_inv_index = {}
-        self.document_count = 0
 
     def add_word_vs(self, word, doc_id):
         if word not in self.vs_inv_index:
@@ -27,5 +26,4 @@ class InvertedIndex:
 
     def print(self):
         print("vs_inv_index: ", self.vs_inv_index)
-        print("DOC_count: ",self.document_count)
         print("boolean_inv_index: ", self.boolean_inv_index)
